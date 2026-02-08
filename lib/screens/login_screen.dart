@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_guru/screens/main_layout.dart';
 import '../services/auth_service.dart';
-import 'home_screen.dart'; // Nanti kita buat ini
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,28 +17,32 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   final AuthService _authService = AuthService();
 
+  // Di dalam class _LoginScreenState ...
+
   void _handleLogin() async {
     setState(() => _isLoading = true);
 
-    bool success = await _authService.login(
+    // Panggil service, sekarang dia mengembalikan String error (atau null)
+    String? errorMessage = await _authService.login(
       _nipController.text,
       _passwordController.text,
     );
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    // Jika errorMessage == null, artinya SUKSES
+    if (errorMessage == null) {
       if (!mounted) return;
-      // Pindah ke Halaman Home (Ganti halaman biar ga bisa back)
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(builder: (context) => const MainLayout()),
       );
     } else {
+      // Jika ada isi errorMessage, TAMPILKAN PESAN DARI SERVER
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login Gagal! Periksa NIP/Password.'),
+        SnackBar(
+          content: Text(errorMessage), // <--- Teksnya dinamis sesuai respon Laravel
           backgroundColor: Colors.red,
         ),
       );

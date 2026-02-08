@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_guru/services/jadwal_services.dart';
+import 'package:intl/intl.dart'; // Wajib: flutter pub add intl
+import 'package:intl/date_symbol_data_local.dart';
+import '../services/jadwal_services.dart';
 import '../models/riwayat_model.dart';
-import 'detail_riwayat_screen.dart'; // Pastikan file ini dibuat setelah ini
+import 'detail_riwayat_screen.dart'; // Pastikan import halaman detail yg km buat di awal
 
 class RiwayatScreen extends StatefulWidget {
   const RiwayatScreen({super.key});
@@ -12,223 +14,307 @@ class RiwayatScreen extends StatefulWidget {
 }
 
 class _RiwayatScreenState extends State<RiwayatScreen> {
-  final JadwalService _jadwalService = JadwalService();
+  final JadwalService _service = JadwalService();
   late Future<List<Riwayat>> _futureRiwayat;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    initializeDateFormatting('id_ID', null);
+    _futureRiwayat = _service.getRiwayat();
   }
 
-  // Fungsi memuat data (dipisah biar bisa dipanggil saat refresh)
-  void _loadData() {
+  // Fungsi Refresh Tarik ke Bawah
+  Future<void> _refreshData() async {
     setState(() {
-      _futureRiwayat = _jadwalService.getRiwayat();
+      _futureRiwayat = _service.getRiwayat();
     });
+  }
+
+  // Helper Format Tanggal (Contoh: Senin, 24 Okt)
+  String _formatTanggal(String dateString) {
+    DateTime date = DateTime.parse(dateString);
+    DateTime now = DateTime.now();
+    
+    // Cek Hari Ini / Kemarin
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      return "Hari Ini, ${DateFormat('d MMM', 'id_ID').format(date)}";
+    }
+    if (date.year == now.year && date.month == now.month && date.day == now.day - 1) {
+      return "Kemarin, ${DateFormat('d MMM', 'id_ID').format(date)}";
+    }
+    
+    return DateFormat('EEEE, d MMM yyyy', 'id_ID').format(date);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Background agak abu sedikit biar kontras
+      backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
-        title: Text(
-          'Riwayat Mengajar',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.black),
-        ),
+        title: Text('Riwayat Mengajar', style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        automaticallyImplyLeading: false, // Hilangkan tombol back default
+        automaticallyImplyLeading: false, // Hilangkan back button kalau ini di navbar
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => _loadData(),
-        color: Colors.blueAccent,
-        child: FutureBuilder<List<Riwayat>>(
-          future: _futureRiwayat,
-          builder: (context, snapshot) {
-            // 1. KONDISI LOADING
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } 
-            
-            // 2. KONDISI ERROR
-            else if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text(
-                      "Gagal memuat data",
-                      style: GoogleFonts.poppins(color: Colors.grey),
-                    ),
-                    TextButton(
-                      onPressed: _loadData,
-                      child: const Text("Coba Lagi"),
-                    )
-                  ],
-                ),
-              );
-            } 
-            
-            // 3. KONDISI DATA KOSONG
-            else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.history_toggle_off, size: 60, color: Colors.grey[300]),
-                    const SizedBox(height: 16),
-                    Text(
-                      "Belum ada riwayat mengajar.",
-                      style: GoogleFonts.poppins(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              );
-            }
+      body: FutureBuilder<List<Riwayat>>(
+        future: _futureRiwayat,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return _buildEmptyState();
+          }
 
-            // 4. KONDISI ADA DATA (List View)
-            return ListView.separated(
+          final List<Riwayat> data = snapshot.data!;
+          
+          // Hitung Ringkasan untuk Header
+          int totalSesi = data.length;
+          int totalSiswaHadir = data.fold(0, (sum, item) => sum + item.hadir);
+
+          return RefreshIndicator(
+            onRefresh: _refreshData,
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: snapshot.data!.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final riwayat = snapshot.data![index];
-                return _buildRiwayatCard(riwayat);
-              },
-            );
-          },
+              children: [
+                // 1. STATISTIK RINGKAS
+                Row(
+                  children: [
+                    _buildSummaryCard(
+                      icon: Icons.check_circle, 
+                      iconColor: Colors.blue.shade700, 
+                      bgColor: Colors.blue.shade50, 
+                      label: "Total Sesi", 
+                      value: "$totalSesi Kelas"
+                    ),
+                    const SizedBox(width: 12),
+                    _buildSummaryCard(
+                      icon: Icons.groups, 
+                      iconColor: Colors.green.shade700, 
+                      bgColor: Colors.green.shade50, 
+                      label: "Siswa Hadir", 
+                      value: "$totalSiswaHadir Siswa"
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // 2. LIST RIWAYAT
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: data.length,
+                  itemBuilder: (context, index) {
+                    final item = data[index];
+                    
+                    // Cek apakah tanggal ini sama dengan sebelumnya (Grouping Logic)
+                    bool showHeader = true;
+                    if (index > 0 && data[index - 1].tanggal == item.tanggal) {
+                      showHeader = false;
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (showHeader) 
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8, top: 8, left: 4),
+                            child: Text(
+                              _formatTanggal(item.tanggal),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12, 
+                                fontWeight: FontWeight.bold, 
+                                color: Colors.grey[500],
+                                letterSpacing: 1
+                              ),
+                            ),
+                          ),
+                        _buildTimelineCard(item),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 80), // Padding bawah
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // WIDGET: Empty State
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history_toggle_off, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text("Belum ada riwayat mengajar", style: GoogleFonts.poppins(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  // WIDGET: Kartu Ringkasan Atas
+  Widget _buildSummaryCard({required IconData icon, required Color iconColor, required Color bgColor, required String label, required String value}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: bgColor.withOpacity(0.5)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5, offset: const Offset(0, 2))]
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey)),
+                  Text(value, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                ],
+              ),
+            )
+          ],
         ),
       ),
     );
   }
 
-  // WIDGET KARTU RIWAYAT
-  Widget _buildRiwayatCard(Riwayat item) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          // Navigasi ke Halaman Detail
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DetailRiwayatScreen(riwayat: item),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  // WIDGET: Kartu Utama (Timeline Style)
+  Widget _buildTimelineCard(Riwayat item) {
+    // Tentukan warna garis samping berdasarkan status
+    // Jika masih proses (lupa diakhiri) warnanya Orange, kalau Selesai Hijau
+    Color statusColor = item.statusPengisian == 'selesai' ? Colors.green : Colors.orange;
+
+    return GestureDetector(
+      onTap: () {
+        // Navigasi ke Detail (Menggunakan halaman yg km buat di awal)
+        Navigator.push(context, MaterialPageRoute(builder: (c) => DetailRiwayatScreen(riwayat: item)));
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5, offset: const Offset(0, 2))],
+        ),
+        child: IntrinsicHeight( // Supaya garis samping tingginya ngikutin konten
+          child: Row(
             children: [
-              // BARIS 1: Tanggal & Jam
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+              // 1. Garis Warna Indikator
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
+                ),
+              ),
+              
+              // 2. Jam (Kiri)
+              Container(
+                width: 70,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  border: Border(right: BorderSide(color: Colors.grey.shade100))
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(item.jamMulai.substring(0, 5), style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+                    Text(item.jamSelesai.substring(0, 5), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  ],
+                ),
+              ),
+
+              // 3. Konten (Kanan)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.calendar_month, size: 14, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        item.tanggal, // Contoh: 2026-02-04
-                        style: GoogleFonts.poppins(
-                          fontSize: 12, 
-                          color: Colors.grey[700],
-                          fontWeight: FontWeight.w500
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.namaMapel, 
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              item.statusPengisian == 'selesai' ? "Selesai" : "Proses",
+                              style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                            ),
+                          )
+                        ],
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "${item.namaKelas} • Materi: ${item.materi}", 
+                        style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey[600]),
+                        maxLines: 1, 
+                        overflow: TextOverflow.ellipsis
+                      ),
+                      const SizedBox(height: 8),
+                      
+                      // Badge Jumlah Siswa (H, S, I, A)
+                      Row(
+                        children: [
+                          _buildMiniBadge("H", item.hadir, Colors.grey.shade100, Colors.grey.shade700),
+                          const SizedBox(width: 4),
+                          if (item.sakit > 0) ...[
+                            _buildMiniBadge("S", item.sakit, Colors.orange.shade50, Colors.orange.shade700),
+                            const SizedBox(width: 4),
+                          ],
+                          if (item.izin > 0) ...[
+                            _buildMiniBadge("I", item.izin, Colors.blue.shade50, Colors.blue.shade700),
+                            const SizedBox(width: 4),
+                          ],
+                          if (item.alpha > 0) ...[
+                            _buildMiniBadge("A", item.alpha, Colors.red.shade50, Colors.red.shade700),
+                          ],
+                        ],
+                      )
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.grey.shade300)
-                    ),
-                    child: Text(
-                      item.jam, // Contoh: 07:00 - 08:20
-                      style: GoogleFonts.poppins(
-                        fontSize: 11, 
-                        fontWeight: FontWeight.bold, 
-                        color: Colors.black54
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // BARIS 2: Kelas & Mapel
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      item.kelas,
-                      style: GoogleFonts.poppins(
-                        color: Colors.blueAccent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      item.mapel,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              const SizedBox(height: 8),
-
-              // BARIS 3: Materi
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Materi Pembelajaran:",
-                    style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.materi.isEmpty ? "-" : item.materi,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13, 
-                      color: Colors.black87,
-                      fontStyle: item.materi.isEmpty ? FontStyle.italic : FontStyle.normal
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+                ),
+              )
             ],
           ),
         ),
       ),
+    );
+  }
+
+  // Helper Badge Kecil (H: 28)
+  Widget _buildMiniBadge(String label, int count, Color bg, Color text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+      child: Text("$label: $count", style: GoogleFonts.poppins(fontSize: 10, color: text, fontWeight: FontWeight.w600)),
     );
   }
 }
