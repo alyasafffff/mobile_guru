@@ -173,14 +173,11 @@ class _IzinScreenState extends State<IzinScreen> {
       backgroundColor: Colors.white, // Background putih bersih sesuai referensi HTML
       // 1. APP BAR BIRU
       appBar: AppBar(
-        backgroundColor: Colors.blue[600],
+        backgroundColor: Color(0xFF2563EB),
         elevation: 0,
         foregroundColor: Colors.white,
         title: Text("Formulir Izin Siswa", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 18)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
+        
       ),
       body: _isLoadingSiswa 
         ? const Center(child: CircularProgressIndicator()) 
@@ -289,7 +286,7 @@ class _IzinScreenState extends State<IzinScreen> {
                       Switch(
                         value: _isFullDay, 
                         activeColor: Colors.white,
-                        activeTrackColor: Colors.blue[600],
+                        activeTrackColor: Color(0xFF2563EB),
                         onChanged: (v) => setState(() => _isFullDay = v)
                       ),
                     ],

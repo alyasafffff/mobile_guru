@@ -52,8 +52,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
-        title: Text('Riwayat Mengajar', style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
+        title: Text('Riwayat Mengajar', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Color(0xFF2563EB),
         elevation: 0,
         centerTitle: false,
         automaticallyImplyLeading: false, // Hilangkan back button kalau ini di navbar
