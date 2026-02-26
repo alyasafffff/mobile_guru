@@ -21,7 +21,7 @@ class PresensiDetail {
     return PresensiDetail(
       id: json['id'],
       siswaId: json['siswa_id'],
-      status: json['status'],
+      status: json['status'] ?? 'Alpha',
       namaSiswa: json['nama_siswa'],
       jenisKelamin: json['jenis_kelamin'] ?? 'L',
       qrToken: json['qr_token'],
@@ -32,7 +32,8 @@ class PresensiDetail {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'id': id,          // Tetap kirim ID detail untuk referensi utama
+      'siswa_id': siswaId, // <--- TAMBAHKAN INI (Wajib ada agar Laravel tidak error)
       'status': status,
     };
   }

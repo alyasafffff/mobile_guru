@@ -6,7 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'home_screen.dart';
 import 'riwayat_screen.dart';
 import 'profile_screen.dart';
-import 'izin_screen.dart'; // Tab Khusus Wali Kelas
+import 'izin_tab_controller.dart'; // Tab Khusus Wali Kelas
+
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -39,7 +40,7 @@ class _MainLayoutState extends State<MainLayout> {
         _pages = [
           const HomeScreen(),
           const RiwayatScreen(),
-          const IzinScreen(), // <--- Tab Spesial
+          const IzinTabController(), // <--- Tab Spesial
           const ProfileScreen(),
         ];
         _navItems = const [

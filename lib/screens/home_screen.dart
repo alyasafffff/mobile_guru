@@ -22,10 +22,46 @@ class _HomeScreenState extends State<HomeScreen> {
   String _nipGuru = "-";
   String? _fotoUrl;
   String _totalSesi = "0";
-  String _totalSiswa = "0";
+  String _totalKelas = "0";
 
   // --- STATE JADWAL (Ganti FutureBuilder dengan List manual) ---
   List<Jadwal> _jadwalList = [];
+  List<Jadwal> _groupJadwal(List<Jadwal> rawJadwal) {
+    if (rawJadwal.isEmpty) return [];
+
+    // 1. Urutkan berdasarkan jam mulai agar berurutan
+    rawJadwal.sort((a, b) => a.jamMulai.compareTo(b.jamMulai));
+
+    List<Jadwal> grouped = [];
+
+    for (var current in rawJadwal) {
+      if (grouped.isEmpty) {
+        grouped.add(current);
+      } else {
+        var last = grouped.last;
+
+        // 2. Syarat Gabung: Mapel sama, Kelas sama, dan jamnya nempel (Selesai jam sebelumnya = Mulai jam sekarang)
+        if (last.mapel == current.mapel &&
+            last.kelas == current.kelas &&
+            last.jamSelesai == current.jamMulai) {
+          // Update jam selesai kartu yang lama dengan jam selesai jadwal yang baru
+          grouped[grouped.length - 1] = Jadwal(
+            id: last.id, // Pakai ID jadwal pertama sebagai trigger
+            mapel: last.mapel,
+            kelas: last.kelas,
+            jamMulai: last.jamMulai,
+            jamSelesai: current.jamSelesai,
+            statusJurnal: last.statusJurnal,
+            jurnalId: last.jurnalId,
+          );
+        } else {
+          grouped.add(current);
+        }
+      }
+    }
+    return grouped;
+  }
+
   bool _isFirstLoad = true; // Untuk loading pertama kali buka aplikasi
   bool _isError = false;
 
@@ -44,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadUserFromCache(); // Tampil cache dulu biar cepat
     await Future.wait([
       _fetchJadwalData(), // Ambil Jadwal API
-      _fetchUserData(),   // Ambil Profil API
+      _fetchUserData(), // Ambil Profil API
     ]);
   }
 
@@ -68,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _nipGuru = data['nip'];
           _fotoUrl = data['foto_url'];
           _totalSesi = data['stats']['total_sesi'].toString();
-          _totalSiswa = data['stats']['total_siswa'].toString();
+          _totalKelas = data['stats']['total_kelas'].toString();
         });
 
         // Update Cache
@@ -88,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final data = await _jadwalService.getJadwalHariIni();
       if (mounted) {
         setState(() {
-          _jadwalList = data;
+          _jadwalList = _groupJadwal(data);
           _isFirstLoad = false; // Matikan loading tengah
           _isError = false;
         });
@@ -108,10 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onRefresh() async {
     // Panggil kedua fungsi API dan tunggu keduanya selesai
     // List tidak akan hilang (jadi tidak ada loading tengah), hanya loading atas.
-    await Future.wait([
-      _fetchJadwalData(),
-      _fetchUserData(),
-    ]);
+    await Future.wait([_fetchJadwalData(), _fetchUserData()]);
   }
 
   // --- LOGIKA MULAI KELAS ---
@@ -164,7 +197,19 @@ class _HomeScreenState extends State<HomeScreen> {
           // 2. KONTEN JADWAL
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _onRefresh, // Panggil fungsi refresh gabungan
+              onRefresh: _onRefresh,
+              color: const Color.fromARGB(
+                255,
+                139,
+                139,
+                139,
+              ), // Warna panah putar
+              backgroundColor: const Color.fromARGB(
+                255,
+                255,
+                255,
+                255,
+              ), 
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(20),
@@ -184,7 +229,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         Text(
-                          DateFormat('EEEE, d MMM', 'id_ID').format(DateTime.now()),
+                          DateFormat(
+                            'EEEE, d MMM',
+                            'id_ID',
+                          ).format(DateTime.now()),
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             color: Colors.grey[600],
@@ -206,7 +254,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.only(top: 30),
-                          child: Text("Gagal memuat jadwal", style: GoogleFonts.poppins()),
+                          child: Text(
+                            "Gagal memuat jadwal",
+                            style: GoogleFonts.poppins(),
+                          ),
                         ),
                       )
                     else if (_jadwalList.isEmpty)
@@ -221,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           return _buildJadwalCard(_jadwalList[index]);
                         },
                       ),
-                    
+
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -244,7 +295,11 @@ class _HomeScreenState extends State<HomeScreen> {
           bottomRight: Radius.circular(30),
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
         ],
       ),
       child: Column(
@@ -258,7 +313,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     "Selamat Pagi,",
-                    style: GoogleFonts.poppins(color: Colors.blue[100], fontSize: 12),
+                    style: GoogleFonts.poppins(
+                      color: Colors.blue[100],
+                      fontSize: 12,
+                    ),
                   ),
                   Text(
                     _namaGuru,
@@ -270,16 +328,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.blue[500],
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       "NIP. $_nipGuru",
-                      style: GoogleFonts.poppins(color: Colors.white, fontSize: 10),
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
                     ),
-                  )
+                  ),
                 ],
               ),
               // FOTO PROFIL
@@ -292,7 +356,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   border: Border.all(color: Colors.white, width: 2),
                   image: _fotoUrl != null
                       ? DecorationImage(
-                          image: CachedNetworkImageProvider(_fotoUrl!), // Pakai Cached biar smooth
+                          image: CachedNetworkImageProvider(
+                            _fotoUrl!,
+                          ), // Pakai Cached biar smooth
                           fit: BoxFit.cover,
                         )
                       : null,
@@ -300,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _fotoUrl == null
                     ? const Icon(Icons.person, color: Colors.white, size: 28)
                     : null,
-              )
+              ),
             ],
           ),
 
@@ -311,11 +377,11 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildStatBox("Total Sesi", "$_totalSesi Sesi"),
               const SizedBox(width: 8),
-              _buildStatBox("Total Siswa", _totalSiswa),
+              _buildStatBox("Total Kelas", "$_totalKelas Kelas"),
               const SizedBox(width: 8),
               _buildStatBox("Status", "Aktif", isGreen: true),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -332,9 +398,19 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           children: [
-            Text(label, style: GoogleFonts.poppins(color: Colors.blue[100], fontSize: 10)),
+            Text(
+              label,
+              style: GoogleFonts.poppins(color: Colors.blue[100], fontSize: 10),
+            ),
             const SizedBox(height: 2),
-            Text(value, style: GoogleFonts.poppins(color: isGreen ? Colors.greenAccent : Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+            Text(
+              value,
+              style: GoogleFonts.poppins(
+                color: isGreen ? Colors.greenAccent : Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -360,22 +436,52 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildTimeBox(jadwal.jamMulai, jadwal.jamSelesai, isActive: false),
+                  _buildTimeBox(
+                    jadwal.jamMulai,
+                    jadwal.jamSelesai,
+                    isActive: false,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(jadwal.mapel, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey[800])),
-                        Text("${jadwal.kelas}", style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600])),
+                        Text(
+                          jadwal.mapel,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        Text(
+                          "${jadwal.kelas}",
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(6)),
-                    child: Text("SELESAI", style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[700])),
-                  )
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      "SELESAI",
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -391,21 +497,44 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border(left: BorderSide(color: Colors.blue[600]!, width: 5)),
-          boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildTimeBox(jadwal.jamMulai, jadwal.jamSelesai, isActive: true),
+                _buildTimeBox(
+                  jadwal.jamMulai,
+                  jadwal.jamSelesai,
+                  isActive: true,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(jadwal.mapel, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey[900])),
-                      Text("${jadwal.kelas} • Lab Komputer", style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600])),
+                      Text(
+                        jadwal.mapel,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.grey[900],
+                        ),
+                      ),
+                      Text(
+                        "${jadwal.kelas} • Lab Komputer",
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -416,7 +545,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         const Icon(Icons.circle, color: Colors.green, size: 8),
                         const SizedBox(width: 4),
-                        Text("LIVE", style: GoogleFonts.poppins(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 10)),
+                        Text(
+                          "LIVE",
+                          style: GoogleFonts.poppins(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -428,15 +564,27 @@ class _HomeScreenState extends State<HomeScreen> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () => _onMulaiKelas(jadwal),
-                icon: const Icon(Icons.qr_code_scanner, size: 18, color: Colors.white),
-                label: Text("LANJUT MENGAJAR", style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Colors.white)),
+                icon: const Icon(
+                  Icons.qr_code_scanner,
+                  size: 18,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  "LANJUT MENGAJAR",
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
-            )
+            ),
           ],
         ),
       );
@@ -454,22 +602,49 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildTimeBox(jadwal.jamMulai, jadwal.jamSelesai, isActive: false),
+              _buildTimeBox(
+                jadwal.jamMulai,
+                jadwal.jamSelesai,
+                isActive: false,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(jadwal.mapel, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey[900])),
-                    Text("${jadwal.kelas} • Ruang Teori", style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600])),
+                    Text(
+                      jadwal.mapel,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.grey[900],
+                      ),
+                    ),
+                    Text(
+                      "${jadwal.kelas} • Ruang Teori",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(6)),
-                child: Text("AKAN DATANG", style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue[600])),
-              )
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "AKAN DATANG",
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[600],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -477,10 +652,21 @@ class _HomeScreenState extends State<HomeScreen> {
             width: double.infinity,
             child: OutlinedButton(
               onPressed: () => _onMulaiKelas(jadwal),
-              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade200), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              child: Text("Mulai Kelas", style: GoogleFonts.poppins(fontSize: 12, color: Colors.blue[700])),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.blue.shade200),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                "Mulai Kelas",
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.blue[700],
+                ),
+              ),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -495,8 +681,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Column(
         children: [
-          Text(start.substring(0, 5), style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14, color: isActive ? Colors.blue[700] : Colors.grey[800])),
-          Text(end.substring(0, 5), style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[500])),
+          Text(
+            start.substring(0, 5),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: isActive ? Colors.blue[700] : Colors.grey[800],
+            ),
+          ),
+          Text(
+            end.substring(0, 5),
+            style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey[500]),
+          ),
         ],
       ),
     );
@@ -509,7 +705,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 40),
           Icon(Icons.event_busy, size: 60, color: Colors.grey[300]),
           const SizedBox(height: 8),
-          Text("Tidak ada jadwal hari ini", style: GoogleFonts.poppins(color: Colors.grey)),
+          Text(
+            "Tidak ada jadwal hari ini",
+            style: GoogleFonts.poppins(color: Colors.grey),
+          ),
         ],
       ),
     );

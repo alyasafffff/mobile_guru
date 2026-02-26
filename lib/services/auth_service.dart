@@ -30,6 +30,7 @@ class AuthService {
         await prefs.setString('token', data['access_token']);
         await prefs.setString('user_name', data['user']['name']);
         await prefs.setString('user_role', data['user']['role']);
+        await prefs.setString('user_hp', data['user']['no_hp'] ?? "");
         
         bool isWalikelas = data['user']['is_walikelas'] ?? false;
         await prefs.setBool('is_walikelas', isWalikelas);

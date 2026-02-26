@@ -19,10 +19,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _nipController = TextEditingController();
   final TextEditingController _namaController = TextEditingController();
   final TextEditingController _hpController = TextEditingController();
-  final TextEditingController _emailController =
-      TextEditingController(); // Baru
-  final TextEditingController _alamatController =
-      TextEditingController(); // Baru
+
 
   // State
   File? _imageFile;
@@ -37,18 +34,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _loadInitialData() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      // Data Read Only
-      _namaController.text = prefs.getString('user_name') ?? "";
-      _nipController.text = prefs.getString('user_nip') ?? "";
-      _fotoUrlServer = prefs.getString('user_foto');
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  
+  // DEBUG: Munculkan di terminal VS Code
+  print("ISI CACHE HP: ${prefs.getString('user_hp')}");
 
-      // --- TAMBAHAN PENTING: ISI FIELD EDIT ---
-      // Ambil 'user_hp' yang disimpan ProfileScreen, masukkan ke kotak input
-      _hpController.text = prefs.getString('user_hp') ?? "";
-    });
-  }
+  setState(() {
+    _namaController.text = prefs.getString('user_name') ?? "";
+    _nipController.text = prefs.getString('user_nip') ?? "";
+    _fotoUrlServer = prefs.getString('user_foto');
+    
+    // Masukkan ke controller
+    _hpController.text = prefs.getString('user_hp') ?? "";
+  });
+}
 
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(
@@ -116,6 +115,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (response.statusCode == 200) {
         print(">> Update Data Berhasil: ${response.body}");
+        await prefs.setString('user_hp', _hpController.text);
         
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

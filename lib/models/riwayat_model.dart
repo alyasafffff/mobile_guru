@@ -33,7 +33,7 @@ class Riwayat {
     return Riwayat(
       id: json['id'],
       tanggal: json['tanggal'],
-      materi: json['materi'] ,
+      materi: json['materi'] ?? "-",
       catatan: json['catatan'],
       statusPengisian: json['status_pengisian'],
       namaKelas: json['nama_kelas'],
