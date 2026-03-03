@@ -82,6 +82,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showFullScreenImage() {
+  if (_fotoUrl == null) return;
+
+  Navigator.push(
+    context,
+    PageRouteBuilder(
+      opaque: false,
+      barrierColor: Colors.black,
+      pageBuilder: (context, _, __) => Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            // Menggunakan expand agar area zoom memenuhi layar
+            SizedBox.expand(
+              child: InteractiveViewer(
+                // PENTING: clipBehavior none agar gambar tidak terpotong saat zoom
+                clipBehavior: Clip.none, 
+                minScale: 0.5,
+                maxScale: 5.0,
+                child: Center(
+                  child: Hero(
+                    tag: 'profile_picture',
+                    child: CachedNetworkImage(
+                      imageUrl: _fotoUrl!,
+                      // BoxFit.contain memastikan gambar asli tidak terdistorsi
+                      // tapi tetap bisa di-zoom meluas
+                      fit: BoxFit.contain, 
+                      placeholder: (context, url) => const CircularProgressIndicator(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Tombol Tutup
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
   // Fungsi khusus untuk Pull to Refresh
   Future<void> _handleRefresh() async {
     await _loadProfile();
@@ -283,29 +336,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Container(
                                   width: 100,
                                   height: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 4,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 10,
+                                  child: GestureDetector(
+                                    onTap:
+                                        _showFullScreenImage, // Panggil fungsi saat diklik
+                                    child: Hero(
+                                      tag:
+                                          'profile_picture', // Tag unik untuk animasi
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 4,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.1,
+                                              ),
+                                              blurRadius: 10,
+                                            ),
+                                          ],
+                                          image: DecorationImage(
+                                            fit: BoxFit.cover,
+                                            image: _fotoUrl != null
+                                                ? CachedNetworkImageProvider(
+                                                    _fotoUrl!,
+                                                  )
+                                                : const NetworkImage(
+                                                        "https://ui-avatars.com/api/?name=Guru",
+                                                      )
+                                                      as ImageProvider,
+                                          ),
+                                        ),
                                       ),
-                                    ],
-                                    image: DecorationImage(
-                                      fit: BoxFit.cover,
-                                      image: _fotoUrl != null
-                                          ? CachedNetworkImageProvider(
-                                              _fotoUrl!,
-                                            )
-                                          : const NetworkImage(
-                                                  "https://ui-avatars.com/api/?name=Guru",
-                                                )
-                                                as ImageProvider,
                                     ),
                                   ),
                                 ),
