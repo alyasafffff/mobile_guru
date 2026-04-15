@@ -52,6 +52,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             sakit: last.sakit,
             izin: last.izin,
             alpha: last.alpha,
+            tipeMengajar: last.tipeMengajar,
+            namaGuruAsli: last.namaGuruAsli,
+            namaPengisi: last.namaPengisi,
           );
         } else {
           grouped.add(current);
@@ -138,13 +141,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       // Gunakan RefreshIndicator membungkus body
       body: RefreshIndicator(
         onRefresh: _onRefresh,
-        color: const Color.fromARGB(255, 139, 139, 139), 
-        backgroundColor: const Color.fromARGB(
-          255,
-          255,
-          255,
-          255,
-        ), 
+        color: const Color.fromARGB(255, 139, 139, 139),
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(),
@@ -320,9 +318,27 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   }
 
   Widget _buildTimelineCard(Riwayat item) {
-    Color statusColor = item.statusPengisian == 'selesai'
-        ? Colors.green
-        : Colors.orange;
+    // 1. Logika Penentuan Warna dan Label
+    Color themeColor;
+    String label;
+    String subTitle;
+
+    if (item.tipeMengajar == 'asli') {
+      themeColor = const Color(0xFF2563EB); // Biru untuk jadwal utama
+      label = "UTAMA";
+      subTitle = "${item.namaKelas} • Jadwal Anda";
+    } else if (item.tipeMengajar == 'piket') {
+      themeColor = Colors.orange; // Orange untuk saat kita piket
+      label = "PIKET";
+      subTitle = "${item.namaKelas} • Menggantikan: ${item.namaGuruAsli}";
+    } else {
+      themeColor = Colors.purple; // Ungu untuk saat kelas kita diisi orang lain
+      label = "DIGANTIKAN";
+      subTitle = "${item.namaKelas} • Digantikan oleh: ${item.namaPengisi}";
+    }
+
+    Color statusColor = item.statusPengisian == 'selesai' ? Colors.green : Colors.grey;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -347,16 +363,18 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         child: IntrinsicHeight(
           child: Row(
             children: [
+              // Garis samping dinamis sesuai themeColor
               Container(
                 width: 4,
                 decoration: BoxDecoration(
-                  color: statusColor,
+                  color: themeColor,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12),
                     bottomLeft: Radius.circular(12),
                   ),
                 ),
               ),
+              // Slot Waktu
               Container(
                 width: 70,
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -370,10 +388,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   children: [
                     Text(
                       item.jamMulai.substring(0, 5),
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
                     ),
                     Text(
                       item.jamSelesai.substring(0, 5),
@@ -395,84 +410,71 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
+                          // Badge Tipe Mengajar dinamis
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: themeColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                             child: Text(
-                              item.namaMapel,
+                              label,
                               style: GoogleFonts.poppins(
+                                fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                color: themeColor,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              item.statusPengisian == 'selesai'
-                                  ? "Selesai"
-                                  : "Proses",
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: statusColor,
+                          // Status Selesai/Proses
+                          Row(
+                            children: [
+                              Icon(Icons.circle, size: 8, color: statusColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                item.statusPengisian == 'selesai' ? "Selesai" : "Proses",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: statusColor,
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
-                        "${item.namaKelas} • Materi: ${item.materi}",
+                        item.namaMapel,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      // Subtitle dinamis
+                      Text(
+                        subTitle,
                         style: GoogleFonts.poppins(
                           fontSize: 11,
-                          color: Colors.grey[600],
+                          color: themeColor == Colors.purple ? Colors.purple[700] : (themeColor == Colors.orange ? Colors.orange[800] : Colors.grey[600]),
+                          fontStyle: item.tipeMengajar != 'asli' ? FontStyle.italic : FontStyle.normal,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
+                      // Statistik Bar (H, S, I, A)
                       Row(
                         children: [
-                          _buildMiniBadge(
-                            "H",
-                            item.hadir,
-                            Colors.grey.shade100,
-                            Colors.grey.shade700,
-                          ),
+                          _buildMiniBadge("H", item.hadir, Colors.grey.shade100, Colors.grey.shade700),
                           const SizedBox(width: 4),
-                          if (item.sakit > 0) ...[
-                            _buildMiniBadge(
-                              "S",
-                              item.sakit,
-                              Colors.orange.shade50,
-                              Colors.orange.shade700,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          if (item.izin > 0) ...[
-                            _buildMiniBadge(
-                              "I",
-                              item.izin,
-                              Colors.blue.shade50,
-                              Colors.blue.shade700,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          if (item.alpha > 0) ...[
-                            _buildMiniBadge(
-                              "A",
-                              item.alpha,
-                              Colors.red.shade50,
-                              Colors.red.shade700,
-                            ),
-                          ],
+                          if (item.sakit > 0) _buildMiniBadge("S", item.sakit, Colors.orange.shade50, Colors.orange.shade700),
+                          const SizedBox(width: 4),
+                          if (item.izin > 0) _buildMiniBadge("I", item.izin, Colors.blue.shade50, Colors.blue.shade700),
+                          const SizedBox(width: 4),
+                          if (item.alpha > 0) _buildMiniBadge("A", item.alpha, Colors.red.shade50, Colors.red.shade700),
                         ],
                       ),
                     ],

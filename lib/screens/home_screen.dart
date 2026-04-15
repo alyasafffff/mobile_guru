@@ -29,7 +29,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Jadwal> _groupJadwal(List<Jadwal> rawJadwal) {
     if (rawJadwal.isEmpty) return [];
 
-    // 1. Urutkan berdasarkan jam mulai agar berurutan
     rawJadwal.sort((a, b) => a.jamMulai.compareTo(b.jamMulai));
 
     List<Jadwal> grouped = [];
@@ -40,19 +39,18 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         var last = grouped.last;
 
-        // 2. Syarat Gabung: Mapel sama, Kelas sama, dan jamnya nempel (Selesai jam sebelumnya = Mulai jam sekarang)
         if (last.mapel == current.mapel &&
             last.kelas == current.kelas &&
             last.jamSelesai == current.jamMulai) {
-          // Update jam selesai kartu yang lama dengan jam selesai jadwal yang baru
           grouped[grouped.length - 1] = Jadwal(
-            id: last.id, // Pakai ID jadwal pertama sebagai trigger
+            id: last.id,
             mapel: last.mapel,
             kelas: last.kelas,
             jamMulai: last.jamMulai,
             jamSelesai: current.jamSelesai,
             statusJurnal: last.statusJurnal,
             jurnalId: last.jurnalId,
+            tipe: last.tipe, // Pastikan tipe ikut dibawa
           );
         } else {
           grouped.add(current);
@@ -204,12 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 139,
                 139,
               ), // Warna panah putar
-              backgroundColor: const Color.fromARGB(
-                255,
-                255,
-                255,
-                255,
-              ), 
+              backgroundColor: const Color.fromARGB(255, 255, 255, 255),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(20),
@@ -420,7 +413,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildJadwalCard(Jadwal jadwal) {
     bool isSelesai = jadwal.statusJurnal == 'selesai';
     bool isProses = jadwal.statusJurnal == 'proses';
+    // Gunakan field tipe dari model (pastikan model Jadwal sudah ada property 'tipe')
+    bool isKegiatan = jadwal.tipe == 'kegiatan';
 
+    // 1. TAMPILAN JIKA JADWAL SUDAH SELESAI (KHUSUS MAPEL)
     if (isSelesai) {
       return Opacity(
         opacity: 0.7,
@@ -431,58 +427,51 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: Column(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildTimeBox(
-                    jadwal.jamMulai,
-                    jadwal.jamSelesai,
-                    isActive: false,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          jadwal.mapel,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        Text(
-                          "${jadwal.kelas}",
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      "SELESAI",
+              _buildTimeBox(
+                jadwal.jamMulai,
+                jadwal.jamSelesai,
+                isActive: false,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      jadwal.mapel,
                       style: GoogleFonts.poppins(
-                        fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
+                        fontSize: 16,
+                        color: Colors.grey[800],
                       ),
                     ),
+                    Text(
+                      jadwal.kelas,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  "SELESAI",
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -490,6 +479,57 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // 2. TAMPILAN JIKA INI ADALAH KEGIATAN SEKOLAH (Tanpa Tombol Absensi)
+    if (isKegiatan) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey[50],
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.blueGrey.shade100!),
+        ),
+        child: Row(
+          children: [
+            _buildTimeBox(jadwal.jamMulai, jadwal.jamSelesai, isActive: false),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    jadwal.mapel, // Ini akan berisi nama kegiatan dari API
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.blueGrey[800],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: Colors.blueGrey[400],
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Kegiatan Rutin Sekolah",
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.blueGrey[400],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 3. TAMPILAN JIKA JADWAL SEDANG BERLANGSUNG (PROSES)
     if (isProses) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -529,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       Text(
-                        "${jadwal.kelas} • Lab Komputer",
+                        "${jadwal.kelas} • Sedang Berlangsung",
                         style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -538,22 +578,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.circle, color: Colors.green, size: 8),
-                        const SizedBox(width: 4),
-                        Text(
-                          "LIVE",
-                          style: GoogleFonts.poppins(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
+                    const Icon(Icons.circle, color: Colors.green, size: 8),
+                    const SizedBox(width: 4),
+                    Text(
+                      "LIVE",
+                      style: GoogleFonts.poppins(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
                     ),
                   ],
                 ),
@@ -590,6 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // 4. TAMPILAN JIKA JADWAL AKAN DATANG (BELUM MULAI)
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -621,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      "${jadwal.kelas} • Ruang Teori",
+                      "${jadwal.kelas} • Ruang Kelas",
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -630,22 +666,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  "AKAN DATANG",
-                  style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue[600],
-                  ),
-                ),
-              ),
-            ],
+                 ],
           ),
           const SizedBox(height: 12),
           SizedBox(

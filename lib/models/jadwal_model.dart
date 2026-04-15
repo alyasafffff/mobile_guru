@@ -4,15 +4,11 @@ class Jadwal {
   final String kelas;
   final String jamMulai;
   final String jamSelesai;
-  
-  // Status Jurnal: 'belum_mulai', 'proses', atau 'selesai'
-  // Ini penting buat nentuin warna tombol (Biru/Hijau/Abu)
   final String statusJurnal; 
-  
-  // ID Jurnal (Nullable / Bisa null)
-  // Kalau status 'belum_mulai', ini pasti null.
-  // Kalau 'proses'/'selesai', ini ada isinya (buat lanjut ngajar).
   final int? jurnalId;
+  final String tipe; 
+  // TAMBAHKAN INI: Nama guru asli yang digantikan (untuk fitur Piket)
+  final String? namaGuruAsli; 
 
   Jadwal({
     required this.id,
@@ -21,28 +17,28 @@ class Jadwal {
     required this.jamMulai,
     required this.jamSelesai,
     required this.statusJurnal,
+    required this.tipe,
     this.jurnalId,
+    this.namaGuruAsli, // Tambahkan di constructor
   });
 
-  // Factory method untuk mengubah JSON dari API menjadi Object Jadwal
   factory Jadwal.fromJson(Map<String, dynamic> json) {
     return Jadwal(
       id: json['id'],
-      // Pastikan key ini ('nama_mapel') SAMA PERSIS dengan respon API Laravel
-      mapel: json['nama_mapel'] ?? 'Mapel Tanpa Nama', 
+      mapel: json['nama_mapel'] ?? 'Tanpa Nama', 
       kelas: json['nama_kelas'] ?? '-',
-      
-      // Ambil 5 karakter pertama saja (07:00:00 -> 07:00) biar rapi
+      // Logika substring yang aman untuk format jam HH:mm:ss
       jamMulai: (json['jam_mulai'] != null && json['jam_mulai'].toString().length >= 5)
           ? json['jam_mulai'].toString().substring(0, 5)
           : '00:00',
-          
       jamSelesai: (json['jam_selesai'] != null && json['jam_selesai'].toString().length >= 5)
           ? json['jam_selesai'].toString().substring(0, 5)
           : '00:00',
-          
       statusJurnal: json['status_jurnal'] ?? 'belum_mulai',
       jurnalId: json['jurnal_id'],
+      tipe: json['tipe'] ?? 'mapel',
+      // TAMBAHKAN INI: Pastikan key-nya sama dengan 'nama_guru_asli' di API Laravel
+      namaGuruAsli: json['nama_guru_asli'], 
     );
   }
 }

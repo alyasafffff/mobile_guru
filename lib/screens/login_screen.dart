@@ -60,10 +60,13 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.school, size: 80, color: Colors.blueAccent),
+              const Image(
+                image: AssetImage('assets/images/logo.png'),
+                height: 100,
+              ),
               const SizedBox(height: 16),
               Text(
-                'Guru App',
+                'SIMONS',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 28,
@@ -73,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Silakan login untuk mulai mengajar',
+                'Sistem Informasi Monitoring Sekolah',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(color: Colors.grey),
               ),
@@ -104,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
               
               // TOMBOL LOGIN
               ElevatedButton(
-                onPressed: _isLoading ? null : _handleLogin,
+                onPressed: _isLoading ? null : _handleLogin, 
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blueAccent,
                   padding: const EdgeInsets.symmetric(vertical: 16),

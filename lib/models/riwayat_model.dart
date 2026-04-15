@@ -12,6 +12,9 @@ class Riwayat {
   final int sakit;
   final int izin;
   final int alpha;
+  final String tipeMengajar; // 'asli' atau 'piket'
+  final String? namaGuruAsli;
+  final String namaPengisi;
 
   Riwayat({
     required this.id,
@@ -27,6 +30,10 @@ class Riwayat {
     required this.sakit,
     required this.izin,
     required this.alpha,
+    required this.tipeMengajar, 
+    this.namaGuruAsli,
+    required this.namaPengisi,
+    
   });
 
   factory Riwayat.fromJson(Map<String, dynamic> json) {
@@ -44,6 +51,9 @@ class Riwayat {
       sakit: json['sakit'],
       izin: json['izin'],
       alpha: json['alpha'],
+      tipeMengajar: json['tipe_mengajar'] ?? 'asli',
+      namaGuruAsli: json['nama_guru_asli'],
+      namaPengisi: json['nama_pengisi'],
     );
   }
 }

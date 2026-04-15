@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Smart School',
+      title: 'SIMONS',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -89,11 +89,11 @@ class _SplashScreenState extends State<SplashScreen> {
                   BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)
                 ]
               ),
-              child: const Icon(Icons.school, size: 60, color: Color(0xFF2563EB)),
+              child: const Image(image: AssetImage('assets/images/logo.png'), height: 80),
             ),
             const SizedBox(height: 24),
-            Text("Smart School", style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-            Text("Aplikasi Presensi Guru", style: GoogleFonts.poppins(fontSize: 14, color: Colors.blue[100])),
+            Text("SIMONS", style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text("Sistem Informasi Monitoring Sekolah", style: GoogleFonts.poppins(fontSize: 14, color: Colors.blue[100])),
             const SizedBox(height: 40),
             // Animasi Loading
             const CircularProgressIndicator(color: Colors.white),
