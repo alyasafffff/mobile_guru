@@ -5,7 +5,7 @@ class PresensiDetail {
   final String namaSiswa;
   final String jenisKelamin;
   final String? qrToken;
-  final bool isLocked; // <--- TAMBAHAN BARU
+  bool isLocked; // <--- TAMBAHAN BARU
 
   PresensiDetail({
     required this.id,

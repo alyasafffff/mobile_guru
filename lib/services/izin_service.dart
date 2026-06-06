@@ -1,6 +1,6 @@
 import 'dart:convert';
+import 'dart:io'; // TAMBAHKAN INI untuk File
 import 'package:http/http.dart' as http;
-import 'package:mobile_guru/screens/izin_riwayat_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../models/siswa_wali_model.dart';
@@ -13,11 +13,10 @@ class IzinService {
     return {
       'Authorization': 'Bearer $token',
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
     };
   }
 
-  // 1. AMBIL LIST SISWA
+  // 1. AMBIL LIST SISWA (Tetap sama)
   Future<List<SiswaWali>> getSiswaBinaan() async {
     final headers = await _getHeaders();
     final response = await http.get(
@@ -34,36 +33,61 @@ class IzinService {
     }
   }
 
-  // 2. KIRIM IZIN (SUDAH DIPERBAIKI)
-  // Menambahkan parameter keterangan agar error merah hilang
+  // 2. KIRIM IZIN (REVISI PAKAI MULTIPART)
   Future<bool> kirimIzin({
     required int siswaId,
     required String status,
     required String jenisIzin,
-    required String tanggalMulai, // Format YYYY-MM-DD
-    required String tanggalSelesai, // Format YYYY-MM-DD
-    int? jamKeMulai, // <--- Pastikan pakai tanda tanya (?)
+    required String tanggalMulai,
+    required String tanggalSelesai,
+    int? jamKeMulai,
     int? jamKeSelesai,
-    String? keterangan, // <--- TAMBAHAN: Parameter Keterangan (Nullable)
+    String? keterangan,
+    File? foto, // <--- TAMBAHAN: Parameter Foto
   }) async {
-    final headers = await _getHeaders();
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
 
-    final body = {
-      'siswa_id': siswaId,
-      'status': status,
-      'jenis_izin': jenisIzin,
-      'tanggal_mulai': tanggalMulai,
-      'tanggal_selesai': tanggalSelesai,
-      'jam_ke_mulai': jamKeMulai,
-      'jam_ke_selesai': jamKeSelesai,
-      'keterangan': keterangan, // <--- TAMBAHAN: Masukkan ke body request
-    };
-
-    final response = await http.post(
+    // Gunakan MultipartRequest bukannya http.post
+    var request = http.MultipartRequest(
+      'POST',
       Uri.parse('${Config.baseUrl}/walikelas/izin'),
-      headers: headers,
-      body: jsonEncode(body),
     );
+
+    // Tambahkan Headers
+    request.headers.addAll({
+      'Authorization': 'Bearer $token',
+      'Accept': 'application/json',
+    });
+
+    // Tambahkan Fields (Semua harus di-convert ke String)
+    request.fields['siswa_id'] = siswaId.toString();
+    request.fields['status'] = status;
+    request.fields['jenis_izin'] = jenisIzin;
+    request.fields['tanggal_mulai'] = tanggalMulai;
+    request.fields['tanggal_selesai'] = tanggalSelesai;
+    request.fields['keterangan'] = keterangan ?? "";
+
+    if (jamKeMulai != null) {
+      request.fields['jam_ke_mulai'] = jamKeMulai.toString();
+    }
+    if (jamKeSelesai != null) {
+      request.fields['jam_ke_selesai'] = jamKeSelesai.toString();
+    }
+
+    // Tambahkan File Foto jika ada
+    if (foto != null) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'foto', // Nama field harus sama dengan di Controller Laravel ($request->file('foto'))
+          foto.path,
+        ),
+      );
+    }
+
+    // Kirim Request
+    var streamedResponse = await request.send();
+    var response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode == 200) {
       return true;
@@ -73,11 +97,9 @@ class IzinService {
     }
   }
 
-  // 3. AMBIL RIWAYAT IZIN
-  // 3. AMBIL RIWAYAT IZIN
+  // 3. AMBIL RIWAYAT IZIN (Tetap sama)
   Future<List<RiwayatIzin>> getRiwayatIzin() async {
     final headers = await _getHeaders();
-
     try {
       final response = await http.get(
         Uri.parse('${Config.baseUrl}/walikelas/riwayat-izin'),
@@ -87,7 +109,6 @@ class IzinService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         List<dynamic> listJson = data['data'];
-        // GANTI RiwayatIzinPage.fromJson MENJADI RiwayatIzin.fromJson
         return listJson.map((json) => RiwayatIzin.fromJson(json)).toList();
       } else {
         throw Exception('Gagal memuat riwayat izin');

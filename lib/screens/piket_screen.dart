@@ -306,7 +306,7 @@ class _PiketScreenState extends State<PiketScreen> {
                       ),
                     ),
                     Text(
-                      "${jadwal.kelas} • Selesai Diabsen",
+                      "${jadwal.kelas} • Selesai Presensi",
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: Colors.grey[600],

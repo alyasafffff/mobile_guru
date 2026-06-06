@@ -8,6 +8,7 @@ class RiwayatIzin {
   final int? jamKeMulai;
   final int? jamKeSelesai;
   final String? keterangan;
+  final String? urlFoto;
 
   RiwayatIzin({
     required this.id,
@@ -19,19 +20,26 @@ class RiwayatIzin {
     this.jamKeMulai,
     this.jamKeSelesai,
     this.keterangan,
+    this.urlFoto,
   });
 
   factory RiwayatIzin.fromJson(Map<String, dynamic> json) {
     return RiwayatIzin(
-      id: json['id'],
-      namaSiswa: json['nama_siswa'], // Sesuai dengan alias 'nama_siswa' di Laravel
+      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
+      namaSiswa: json['nama_siswa'],
       status: json['status'],
       jenisIzin: json['jenis_izin'],
       tanggalMulai: json['tanggal_mulai'],
       tanggalSelesai: json['tanggal_selesai'],
-      jamKeMulai: json['jam_ke_mulai'], // Pastikan key-nya sama dengan JSON dari Laravel
-      jamKeSelesai: json['jam_ke_selesai'],
+      // Handle null untuk jam_ke
+      jamKeMulai: json['jam_ke_mulai'] != null
+          ? int.parse(json['jam_ke_mulai'].toString())
+          : null,
+      jamKeSelesai: json['jam_ke_selesai'] != null
+          ? int.parse(json['jam_ke_selesai'].toString())
+          : null,
       keterangan: json['keterangan'],
+      urlFoto: json['url_foto'],
     );
   }
 }

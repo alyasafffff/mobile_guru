@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/presensi_model.dart';
 import '../services/jadwal_services.dart';
+import 'qr_scanner_page.dart';
 
 class AbsensiScreen extends StatefulWidget {
   final int jurnalId;
@@ -50,9 +51,6 @@ class _AbsensiScreenState extends State<AbsensiScreen>
   }
 
   void _loadData() async {
-    print(
-      "Memuat detail presensi untuk Jurnal ID: ${widget.jurnalId}",
-    ); // <--- Tambahkan ini
     try {
       final data = await _service.getDetailSiswa(widget.jurnalId);
       setState(() {
@@ -67,11 +65,7 @@ class _AbsensiScreenState extends State<AbsensiScreen>
     }
   }
 
-  // --- LOGIKA SCANNER ---
-  // --- LOGIKA SCANNER YANG SUDAH DIOPTIMASI ---
-  // --- LOGIKA SCANNER TERBARU (FIX ERROR MERAH) ---
   void _bukaScanner() async {
-    // 1. Cek Izin Kamera
     var status = await Permission.camera.request();
     if (status.isDenied) {
       if (!mounted) return;
@@ -83,136 +77,18 @@ class _AbsensiScreenState extends State<AbsensiScreen>
 
     if (!mounted) return;
 
-    // 2. Siapkan Controller
-    final MobileScannerController cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates, // Biar gak spam scan
-      returnImage: false,
-      torchEnabled: false,
-      autoStart: true,
-    );
-
+    // Panggil QRScannerPage dan kirim list siswa
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text("Scan QR Siswa"),
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            actions: [
-              // TOMBOL SENTER / FLASH (UPDATED)
-              ValueListenableBuilder(
-                valueListenable:
-                    cameraController, // <--- Listen ke Controller langsung
-                builder: (context, state, child) {
-                  // Ambil status torch dari state
-                  final isTorchOn = state.torchState == TorchState.on;
-                  return IconButton(
-                    icon: Icon(
-                      isTorchOn ? Icons.flash_on : Icons.flash_off,
-                      color: isTorchOn ? Colors.yellow : Colors.grey,
-                    ),
-                    onPressed: () => cameraController.toggleTorch(),
-                  );
-                },
-              ),
-              // TOMBOL GANTI KAMERA (UPDATED)
-              ValueListenableBuilder(
-                valueListenable:
-                    cameraController, // <--- Listen ke Controller langsung
-                builder: (context, state, child) {
-                  // Ambil arah kamera dari state
-                  final isFront = state.cameraDirection == CameraFacing.front;
-                  return IconButton(
-                    icon: Icon(
-                      isFront ? Icons.camera_front : Icons.camera_rear,
-                    ),
-                    onPressed: () => cameraController.switchCamera(),
-                  );
-                },
-              ),
-            ],
-          ),
-          body: Stack(
-            children: [
-              MobileScanner(
-                controller: cameraController,
-                onDetect: (capture) {
-                  final List<Barcode> barcodes = capture.barcodes;
-                  for (final barcode in barcodes) {
-                    if (barcode.rawValue != null) {
-                      _prosesHasilScan(barcode.rawValue!);
-                    }
-                  }
-                },
-              ),
-              // OVERLAY KOTAK FOKUS
-              Center(
-                child: Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.greenAccent, width: 3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const Positioned(
-                bottom: 50,
-                left: 0,
-                right: 0,
-                child: Text(
-                  "Arahkan QR Code ke dalam kotak",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    backgroundColor: Colors.black54,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        builder: (context) => QRScannerPage(listSiswa: _listSiswa),
       ),
     );
 
-    // Matikan kamera saat kembali agar hemat baterai
-    cameraController.dispose();
-  }
-
-  void _prosesHasilScan(String code) {
-    final index = _listSiswa.indexWhere((siswa) => siswa.qrToken == code);
-
-    if (index != -1) {
-      final siswa = _listSiswa[index];
-
-      // Cek Locked
-      if (siswa.isLocked) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "⛔ ${siswa.namaSiswa} sedang ${siswa.status} (Dikunci)!",
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      if (siswa.status == 'Hadir') return;
-
-      setState(() {
-        _listSiswa[index].status = 'Hadir';
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("✅ ${siswa.namaSiswa} Hadir!"),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 1),
-        ),
-      );
+    // KUNCI: Setelah kembali dari scanner, cukup panggil setState.
+    // JANGAN panggil _loadData() lagi di sini agar data 'Hadir' hasil scan tidak tertimpa data lama dari database.
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -224,25 +100,21 @@ class _AbsensiScreenState extends State<AbsensiScreen>
           backgroundColor: Colors.red,
         ),
       );
-      // Pindah ke tab Jurnal otomatis jika lupa isi
       _tabController.animateTo(1);
       return;
     }
 
-    // Siapkan List Data Siswa
     List<Map<String, dynamic>> listData = _listSiswa
         .map((s) => s.toJson())
         .toList();
 
     try {
-      // Panggil service dengan parameter TERPISAH (materi, catatan, listData)
       await _service.updatePresensi(
         widget.jurnalId,
         _materiController.text,
         _catatanController.text,
         listData,
       );
-
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -258,26 +130,24 @@ class _AbsensiScreenState extends State<AbsensiScreen>
     }
   }
 
-  // --- HELPER UNTUK HITUNG JUMLAH ---
   int _countStatus(String status) =>
       _listSiswa.where((s) => s.status == status).length;
 
   @override
   Widget build(BuildContext context) {
-    // Hitung total hadir
     int totalHadir = _countStatus('Hadir');
     int totalSiswa = _listSiswa.length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6), // Abu-abu terang background
+      backgroundColor: const Color(0xFFF3F4F6),
       body: SafeArea(
         child: Column(
           children: [
-            // 1. HEADER (Biru)
+            // HEADER
             Container(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
               decoration: const BoxDecoration(
-                color: Color(0xFF2563EB), // Blue-600
+                color: Color(0xFF2563EB),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black12,
@@ -286,93 +156,58 @@ class _AbsensiScreenState extends State<AbsensiScreen>
                   ),
                 ],
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      InkWell(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
+                  InkWell(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.namaMapel,
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.people,
-                                  color: Colors.blueAccent,
-                                  size: 14,
-                                ), // Icon user agak tricky di bg biru, ganti warna dikit
-                                Text(
-                                  " ${widget.namaKelas} • Live Session",
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.blue.shade100,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.greenAccent.shade700,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          "LIVE",
-                          style: TextStyle(
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.namaMapel,
+                          style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 10,
+                            fontSize: 18,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 4),
+                        Text(
+                          "${widget.namaKelas} • Live Session",
+                          style: GoogleFonts.poppins(
+                            color: Colors.blue.shade100,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // 2. TAB BAR (Sticky)
+            // TAB BAR
             Container(
               color: Colors.white,
               child: TabBar(
                 controller: _tabController,
                 labelColor: const Color(0xFF2563EB),
-                unselectedLabelColor: Colors.grey,
                 indicatorColor: const Color(0xFF2563EB),
-                indicatorWeight: 3,
-                labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold),
                 tabs: [
                   Tab(text: "Presensi ($totalHadir/$totalSiswa)"),
                   const Tab(text: "Jurnal Kelas"),
@@ -380,16 +215,13 @@ class _AbsensiScreenState extends State<AbsensiScreen>
               ),
             ),
 
-            // 3. ISI KONTEN (TAB VIEW)
+            // CONTENT
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : TabBarView(
                       controller: _tabController,
-                      children: [
-                        _buildTabPresensi(), // Konten Tab 1
-                        _buildTabJurnal(), // Konten Tab 2
-                      ],
+                      children: [_buildTabPresensi(), _buildTabJurnal()],
                     ),
             ),
           ],
@@ -398,7 +230,6 @@ class _AbsensiScreenState extends State<AbsensiScreen>
     );
   }
 
-  // === TAB 1: DAFTAR SISWA ===
   Widget _buildTabPresensi() {
     return Stack(
       children: [
@@ -406,7 +237,6 @@ class _AbsensiScreenState extends State<AbsensiScreen>
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // STATISTIK GRID
               Row(
                 children: [
                   _buildStatCard(
@@ -439,8 +269,6 @@ class _AbsensiScreenState extends State<AbsensiScreen>
                 ],
               ),
               const SizedBox(height: 16),
-
-              // LIST SISWA
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -448,129 +276,73 @@ class _AbsensiScreenState extends State<AbsensiScreen>
                 separatorBuilder: (c, i) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final siswa = _listSiswa[index];
-
-                  // Tentukan Warna Border Kiri & Icon
-                  Color statusColor = Colors.grey; // Default
-                  if (siswa.status == 'Hadir') statusColor = Colors.green;
-                  if (siswa.status == 'Alpha') statusColor = Colors.red;
-                  if (siswa.status == 'Sakit') statusColor = Colors.orange;
-                  if (siswa.status == 'Izin') statusColor = Colors.blue;
+                  Color statusColor = Colors.grey;
+                  if (siswa.status == 'Hadir')
+                    statusColor = Colors.green;
+                  else if (siswa.status == 'Alpha')
+                    statusColor = Colors.red;
+                  else if (siswa.status == 'Sakit')
+                    statusColor = Colors.orange;
+                  else if (siswa.status == 'Izin')
+                    statusColor = Colors.blue;
 
                   return Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                      border: Border(
+                        left: BorderSide(color: statusColor, width: 5),
+                      ),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            left: BorderSide(color: statusColor, width: 5),
-                          ),
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.grey.shade200,
+                          child: Text(siswa.namaSiswa[0]),
                         ),
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            // AVATAR
-                            CircleAvatar(
-                              backgroundColor: Colors.grey.shade200,
-                              radius: 20,
-                              child: Text(
-                                siswa.namaSiswa.isNotEmpty
-                                    ? siswa.namaSiswa[0]
-                                    : "?",
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                siswa.namaSiswa,
                                 style: GoogleFonts.poppins(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade700,
+                                  fontSize: 14,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-
-                            // NAMA & INFO
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    siswa.namaSiswa,
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  if (siswa.isLocked)
-                                    Text(
-                                      "🔒 Izin dari Wali Kelas",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    )
-                                  else if (siswa.status == 'Hadir')
-                                    Text(
-                                      "Terverifikasi QR Code",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        color: Colors.green,
-                                      ),
-                                    )
-                                  else
-                                    Text(
-                                      "Belum Scan",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        color: Colors.red,
-                                      ),
-                                    ),
-                                ],
+                              Text(
+                                siswa.isLocked
+                                    ? "🔒 Izin dari Wali Kelas"
+                                    : (siswa.status == 'Hadir'
+                                          ? "Terverifikasi"
+                                          : "Belum Scan"),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: siswa.status == 'Hadir'
+                                      ? Colors.green
+                                      : (siswa.isLocked
+                                            ? Colors.orange
+                                            : Colors.red),
+                                ),
                               ),
-                            ),
+                            ],
+                          ),
+                        ),
 
-                            // ACTION / STATUS
-                            if (siswa.isLocked)
-                              // Kalau dikunci, tampilkan text saja
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  siswa.status,
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              )
-                            else if (siswa.status == 'Hadir')
-                              // Kalau hadir, tampilkan checklist (gabisa diubah manual)
-                              const Icon(
-                                Icons.check_circle,
-                                color: Colors.green,
-                                size: 24,
-                              )
-                            else
-                              // Kalau belum, kasih tombol ubah manual (Dropdown mini)
-                              // GANTI BAGIAN DROPDOWN LAMA DENGAN INI:
-                              InkWell(
-                                onTap: () => _showStatusPicker(siswa),
-                                borderRadius: BorderRadius.circular(8),
-                                child: Container(
+                        // --- REVISI BAGIAN STATUS DI SINI ---
+                        InkWell(
+                          onTap: () => _showStatusPicker(siswa),
+                          child: siswa.status == 'Hadir'
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size:
+                                      28, // Ukuran ikon diperbesar dikit biar jelas
+                                )
+                              : Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10,
                                     vertical: 6,
@@ -583,57 +355,52 @@ class _AbsensiScreenState extends State<AbsensiScreen>
                                     ),
                                   ),
                                   child: Row(
-                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         siswa.status,
                                         style: GoogleFonts.poppins(
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.bold,
                                           color: statusColor,
                                         ),
                                       ),
                                       const SizedBox(width: 4),
                                       const Icon(
-                                        Icons.keyboard_arrow_down,
-                                        size: 16,
+                                        Icons.edit,
+                                        size: 14,
                                         color: Colors.grey,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
-                          ],
                         ),
-                      ),
+                      ],
                     ),
                   );
                 },
               ),
-              const SizedBox(height: 80), // Space buat FAB
+              const SizedBox(height: 80),
             ],
           ),
         ),
-
-        // FAB SCANNER
         Positioned(
           bottom: 24,
-          right: 0,
           left: 0,
+          right: 0,
           child: Center(
             child: InkWell(
               onTap: _bukaScanner,
               child: Container(
                 width: 60,
                 height: 60,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF2563EB),
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.blue.withOpacity(0.4),
+                      color: Colors.blueAccent,
                       blurRadius: 15,
-                      offset: const Offset(0, 8),
+                      offset: Offset(0, 8),
                     ),
                   ],
                 ),
@@ -653,28 +420,14 @@ class _AbsensiScreenState extends State<AbsensiScreen>
   void _showStatusPicker(PresensiDetail siswa) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Padding(
         padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
             Text(
               "Ubah Status: ${siswa.namaSiswa}",
               style: GoogleFonts.poppins(
@@ -682,174 +435,195 @@ class _AbsensiScreenState extends State<AbsensiScreen>
                 fontSize: 16,
               ),
             ),
-            const SizedBox(height: 16),
-            // List Pilihan Status
-            ...['Alpha', 'Sakit', 'Izin'].map(
-              (status) => ListTile(
+            const Divider(),
+            // Guru mapel bisa mengubah status ke apa saja, termasuk Hadir
+            ...['Hadir', 'Alpha', 'Sakit', 'Izin'].map(
+              (s) => ListTile(
                 leading: Icon(
-                  status == 'Hadir'
-                      ? Icons.check_circle_outline
-                      : Icons.info_outline,
-                  color: const Color(0xFF2563EB),
+                  s == 'Hadir' ? Icons.check_circle : Icons.info_outline,
+                  color: s == 'Hadir' ? Colors.green : const Color(0xFF2563EB),
                 ),
-                title: Text(status, style: GoogleFonts.poppins(fontSize: 14)),
-                trailing: siswa.status == status
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
+                title: Text(s),
                 onTap: () {
-                  setState(() => siswa.status = status);
+                  setState(() {
+                    siswa.status = s;
+                    if (s == 'Hadir')
+                      siswa.isLocked = false; // Buka gembok jika diset Hadir
+                  });
                   Navigator.pop(context);
                 },
               ),
             ),
-            const SizedBox(height: 12),
           ],
         ),
       ),
     );
   }
 
-  // === TAB 2: INPUT JURNAL ===
   Widget _buildTabJurnal() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ALERT WARNING
+          // CARD UTAMA FORM
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFFBEB), // Yellow-50
-              border: Border.all(color: const Color(0xFFFCD34D)), // Yellow-200
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Row(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info, color: Color(0xFFD97706), size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Peringatan Smart Alert",
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF92400E),
-                          fontSize: 12,
-                        ),
+                // LABEL MATERI
+                Row(
+                  children: [
+                    const Icon(Icons.book_outlined, color: Color(0xFF2563EB), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Materi Ajar",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.grey[800],
                       ),
-                      Text(
-                        "Harap isi materi & simpan jurnal agar kehadiran siswa terekam di sistem.",
-                        style: GoogleFonts.poppins(
-                          color: const Color(0xFFB45309),
-                          fontSize: 10,
-                        ),
+                    ),
+                    Text(" *", style: TextStyle(color: Colors.red[600])),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // INPUT MATERI
+                TextField(
+                  controller: _materiController,
+                  maxLines: 4,
+                  style: GoogleFonts.poppins(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: "Contoh: Pengenalan Aljabar Linear...",
+                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 13),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    contentPadding: const EdgeInsets.all(16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+
+                // LABEL CATATAN
+                Row(
+                  children: [
+                    const Icon(Icons.notes_rounded, color: Color(0xFF2563EB), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Catatan Tambahan",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.grey[800],
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // INPUT CATATAN
+                TextField(
+                  controller: _catatanController,
+                  style: GoogleFonts.poppins(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: "Misal: Siswa A izin ke UKS di tengah jam...",
+                    hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 13),
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    contentPadding: const EdgeInsets.all(16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-
-          // FORM MATERI
-          Text(
-            "Materi Ajar *",
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _materiController,
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText: "Contoh: Logaritma Dasar dan Sifat-sifatnya...",
-              hintStyle: GoogleFonts.poppins(
-                color: Colors.grey[400],
-                fontSize: 12,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.blue),
-              ),
-              filled: true,
-              fillColor: Colors.white,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // FORM CATATAN
-          Text(
-            "Catatan Tambahan (Opsional)",
-            style: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _catatanController,
-            decoration: InputDecoration(
-              hintText: "Misal: Proyektor di kelas ini rusak...",
-              hintStyle: GoogleFonts.poppins(
-                color: Colors.grey[400],
-                fontSize: 12,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.blue),
-              ),
-              filled: true,
-              fillColor: Colors.white,
-            ),
-          ),
-
+          
           const SizedBox(height: 32),
 
-          // TOMBOL SIMPAN
-          SizedBox(
+          // TOMBOL SIMPAN MODERN
+          Container(
             width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: _simpanAbsensi,
-              icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-              label: Text(
-                "SIMPAN & AKHIRI KELAS",
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+            height: 55,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF16A34A), // Green-600
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF16A34A).withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
                 ),
-                elevation: 4,
+              ],
+            ),
+            child: ElevatedButton(
+              onPressed: _simpanAbsensi,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.cloud_upload_outlined, color: Colors.white),
+                  const SizedBox(width: 10),
+                  Text(
+                    "SIMPAN & AKHIRI KELAS",
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+          
+          const SizedBox(height: 40), // Spacer bawah
         ],
       ),
     );
   }
 
-  // Helper Widget Stat Card
   Widget _buildStatCard(
     String label,
     int count,

@@ -20,34 +20,43 @@ class _LoginScreenState extends State<LoginScreen> {
   // Di dalam class _LoginScreenState ...
 
   void _handleLogin() async {
-    setState(() => _isLoading = true);
-
-    // Panggil service, sekarang dia mengembalikan String error (atau null)
-    String? errorMessage = await _authService.login(
-      _nipController.text,
-      _passwordController.text,
+  // 1. VALIDASI FORM KOSONG DI SISI MOBILE
+  if (_nipController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('NIP dan Password wajib diisi!'),
+        backgroundColor: Colors.orange, // Menggunakan warna orange sebagai penanda warning validasi
+      ),
     );
-
-    setState(() => _isLoading = false);
-
-    // Jika errorMessage == null, artinya SUKSES
-    if (errorMessage == null) {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const MainLayout()),
-      );
-    } else {
-      // Jika ada isi errorMessage, TAMPILKAN PESAN DARI SERVER
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage), // <--- Teksnya dinamis sesuai respon Laravel
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    return; // Hentikan proses, jangan kirim ke server
   }
+
+  // 2. JIKA AMAN, LANJUTKAN PROSES LOGIN KE SERVER
+  setState(() => _isLoading = true);
+
+  String? errorMessage = await _authService.login(
+    _nipController.text,
+    _passwordController.text,
+  );
+
+  setState(() => _isLoading = false);
+
+  if (errorMessage == null) {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const MainLayout()),
+    );
+  } else {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessage),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
